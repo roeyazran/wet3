@@ -72,7 +72,7 @@ def betterEvaluationFunction(gameState):
   PacmanLocation = gameState.getPacmanState().configuration.pos
   GhostStatesArr =  gameState.getGhostStates()
   GhostsDistances = [util.manhattanDistance(PacmanLocation, Ghost.configuration.pos) for Ghost in GhostStatesArr]
-  risk = 1/(min(GhostsDistances)+1)
+  risk = 1/(min(GhostsDistances)) if min(GhostsDistances) != 0 else 1
   food_items = 0
   CurrentFood =gameState.getFood()
   x,y = util.nearestPoint(PacmanLocation)
@@ -84,14 +84,11 @@ def betterEvaluationFunction(gameState):
         if CurrentFood[x+i][y+j]:
           food_items += 1
   food_density = 0
-    # food_items/FoodSquares
-  CapsuleActive = 1 if gameState.getGhostState(GhostsDistances.index(min(GhostsDistances))+1).scaredTimer >= risk else -1
+  CapsuleActive = 4 if gameState.getGhostState(GhostsDistances.index(min(GhostsDistances))+1).scaredTimer >= 0.5*min(GhostsDistances) else -1
 
   minFoodDist= findMinFoodDistance(gameState)
-  print ("pacman pos:", (x,y) ,"min found", minFoodDist)
-  #return 1/(minFoodDist[0])
-
-  return gameState.getScore()+abs(gameState.getScore())*(risk*CapsuleActive+food_density+0.5*(1/(minFoodDist[0])))
+  punishWalls = punishNearWalls(gameState)
+  return 0.5*gameState.getScore()+0.5*abs(gameState.getScore())*(0.6*risk*CapsuleActive+0.05*food_density+0.3*(1/(minFoodDist[0]))-0.05*punishWalls)
 
 
 def findMinFoodDistance(gameState):
@@ -108,45 +105,62 @@ def findMinFoodDistance(gameState):
       # Sacnning in squares arount pacman
       # top row
       if isLeagalPos(gameState, PacmanLocation[0] + j, topBaseRow) and (CurrentFood[PacmanLocation[0] + j][topBaseRow] or (PacmanLocation[0] + j, topBaseRow) in gameState.getCapsules()):
-        print ('found at top row jcol:', j)
-        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] + j, topBaseRow))+1,(PacmanLocation[0] + j, topBaseRow))
+        return (i,(PacmanLocation[0] + j, topBaseRow))
 
       if isLeagalPos(gameState, PacmanLocation[0] - j, topBaseRow) and (CurrentFood[PacmanLocation[0] - j][topBaseRow] or (PacmanLocation[0] - j, topBaseRow) in gameState.getCapsules()):
-        print ('found at top row jcol: ', -j)
-        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] - j, topBaseRow))+1,(PacmanLocation[0] - j, topBaseRow))
+        return (i,(PacmanLocation[0] - j, topBaseRow))
 
       # bottomRow
       if isLeagalPos(gameState, PacmanLocation[0] + j, bottomBaseRow) and (CurrentFood[PacmanLocation[0] + j][
         bottomBaseRow] or (PacmanLocation[0] + j, bottomBaseRow) in gameState.getCapsules()):
-        print ('found at btm row jcol: ', j)
-
-        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] + j, bottomBaseRow))+1,(PacmanLocation[0] + j, bottomBaseRow))
+        return (i,(PacmanLocation[0] + j, bottomBaseRow))
 
       if isLeagalPos(gameState, PacmanLocation[0] - j, bottomBaseRow) and (CurrentFood[PacmanLocation[0] - j][
         bottomBaseRow] or (PacmanLocation[0] - j, bottomBaseRow) in gameState.getCapsules()):
-        print ('found at btm row jcol: ' ,-j)
-        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] - j, bottomBaseRow))+1,(PacmanLocation[0] - j, bottomBaseRow))
+        return (i,(PacmanLocation[0] - j, bottomBaseRow))
 
       # left col
       if isLeagalPos(gameState, leftBaseCol, PacmanLocation[1] + j) and (CurrentFood[leftBaseCol][PacmanLocation[1] + j]
         or (leftBaseCol, PacmanLocation[1] + j) in gameState.getCapsules()):
-        print ('found at left col jrow: ', j)
-        return (util.manhattanDistance(PacmanLocation, (leftBaseCol, PacmanLocation[1] + j))+1,(leftBaseCol, PacmanLocation[1] + j))
+        return (i,(leftBaseCol, PacmanLocation[1] + j))
 
       if isLeagalPos(gameState, leftBaseCol, PacmanLocation[1] - j) and (CurrentFood[leftBaseCol][PacmanLocation[1] - j]
         or (leftBaseCol, PacmanLocation[1] - j) in gameState.getCapsules()):
-        print ('found at left col jrow: ', -j)
-        return (util.manhattanDistance(PacmanLocation, (leftBaseCol, PacmanLocation[1] - j))+1,(leftBaseCol, PacmanLocation[1] - j))
+        return (i,(leftBaseCol, PacmanLocation[1] - j))
 
       # right col
       if isLeagalPos(gameState, rightBaseCol, PacmanLocation[1] + j) and (CurrentFood[rightBaseCol][
         PacmanLocation[1] + j] or (rightBaseCol, PacmanLocation[1] + j) in gameState.getCapsules()):
-        print ('found at right col jrow: ', j)
-        return (util.manhattanDistance(PacmanLocation, (rightBaseCol, PacmanLocation[1] + j))+1,(rightBaseCol, PacmanLocation[1] + j))
+        return (i,(rightBaseCol, PacmanLocation[1] + j))
 
       if isLeagalPos(gameState, rightBaseCol, PacmanLocation[1] - j) and (CurrentFood[rightBaseCol][PacmanLocation[1] - j] or (rightBaseCol, PacmanLocation[1] - j) in gameState.getCapsules()):
-        print ('found at right col jrow: ', -j)
-        return (util.manhattanDistance(PacmanLocation, (rightBaseCol, PacmanLocation[1] - j))+1,(rightBaseCol, PacmanLocation[1] - j))
+        return (i,(rightBaseCol, PacmanLocation[1] - j))
+
+def punishNearWalls(gameState):
+  CurrentFood =gameState.getFood()
+  CurrentWalls = gameState.getWalls()
+  PacmanLocation =  util.nearestPoint(gameState.getPacmanState().configuration.pos)
+  punish = 0
+  if gameState.data._foodEaten == (PacmanLocation[0],PacmanLocation[1]):
+    return punish
+  punish+=1  #punish for no food at point
+  (right,left,top,bottom) = (0,0,0,0)
+  if isLeagalPos(gameState,PacmanLocation[0]+1 ,PacmanLocation[1]) and CurrentWalls[PacmanLocation[0]+1][PacmanLocation[1]]:
+    punish+=1 #punish for each wall in current location
+    right = 1
+  if isLeagalPos(gameState,PacmanLocation[0]-1 ,PacmanLocation[1]) and CurrentWalls[PacmanLocation[0]-1][PacmanLocation[1]]:
+    punish+=1 #punish for each wall in current location
+    left=1
+  if isLeagalPos(gameState,PacmanLocation[0] ,PacmanLocation[1]+1) and CurrentWalls[PacmanLocation[0]][PacmanLocation[1]+1]:
+    punish+=1 #punish for each wall in current location
+    top=1
+  if isLeagalPos(gameState,PacmanLocation[0] ,PacmanLocation[1]-1) and CurrentWalls[PacmanLocation[0]][PacmanLocation[1]-1]:
+    punish+=1 #punish for each wall in current location
+    bottom=1
+
+  punish = ((top and left) + (top and right) +  (bottom and left) + (bottom and right))
+
+  return punish/8;  #maximom is 1
 
 
 #     ********* MultiAgent Search Agents- sections c,d,e,f*********
