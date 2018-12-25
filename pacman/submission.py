@@ -162,13 +162,13 @@ def punishNearWalls(gameState):
 
   return punish/8;  #maximom is 1
 
-
-#     ********* MultiAgent Search Agents- sections c,d,e,f*********
-
 def isLeagalPos(gameState,x,y):
   if x >= 0 and x < gameState.data.layout.width and y >= 0 and y < gameState.data.layout.height:
     return True
   return False
+
+
+#     ********* MultiAgent Search Agents- sections c,d,e,f*********
 
 
 class MultiAgentSearchAgent(Agent):
@@ -186,7 +186,7 @@ class MultiAgentSearchAgent(Agent):
     is another abstract class.
   """
 
-  def __init__(self, evalFn = 'betterEvaluationFunction', depth = '2'):
+  def __init__(self, evalFn = 'scoreEvaluationFunction', depth = '2'):
     self.index = 0 # Pacman is always agent index 0
     self.evaluationFunction = util.lookup(evalFn, globals())
     self.depth = int(depth)
@@ -198,6 +198,8 @@ class MinimaxAgent(MultiAgentSearchAgent):
   """
     Your minimax agent
   """
+
+
 
   def getAction(self, gameState):
     """
@@ -234,11 +236,51 @@ class MinimaxAgent(MultiAgentSearchAgent):
 
     """
 
-    # BEGIN_YOUR_CODE
-    raise Exception("Not implemented yet")
+
+
+    return self.Minimax(gameState,self.depth)[0]
+
     # END_YOUR_CODE
 
-######################################################################################
+  def Minimax(self,gameState, Depth):
+    if gameState.isLose() or gameState.isWin() or Depth ==0: return (None,self.evaluationFunction(gameState))
+    currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
+    print(currentAgentIndex )
+    if currentAgentIndex == 0:
+    # now its pacman turn
+      MaxCandidateflag = 1
+      MaxSuccessorValue=0
+      BestMove = None
+      for action in gameState.getLegalActions(currentAgentIndex):
+        NewSucc=gameState.generateSuccessor(currentAgentIndex, action)
+        (NewBestMove, NewSuccVal)= self.Minimax(NewSucc, Depth - 1)
+        if MaxCandidateflag == 1:
+          MaxCandidateflag = 0
+          MaxSuccessorValue = NewSuccVal
+          BestMove = action
+        elif MaxSuccessorValue < NewSuccVal:
+          MaxSuccessorValue = NewSuccVal
+          BestMove = action
+      return (BestMove,MaxSuccessorValue)
+
+    MinCandidateflag = 1
+
+    MinSuccesorValue =0
+    worstMove = None
+    for action in gameState.getLegalActions(currentAgentIndex):
+      NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+      (NewWorstMove, NewSuccVal) = self.Minimax(NewSucc, Depth)
+      if MinCandidateflag == 1:
+        MinCandidateflag = 0
+        MinSuccesorValue = NewSuccVal
+        WoMove = action
+      elif MinSuccesorValue > NewSuccVal:
+        MinSuccesorValue = NewSuccVal
+        worstMove = action
+    return (worstMove,MinSuccesorValue)
+
+
+          ######################################################################################
 # d: implementing alpha-beta
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
