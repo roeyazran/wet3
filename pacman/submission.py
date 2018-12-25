@@ -37,7 +37,7 @@ class ReflexAgent(Agent):
     and returns a number, where higher numbers are better.
     """
     successorGameState = currentGameState.generatePacmanSuccessor(action)
-    return scoreEvaluationFunction(successorGameState)
+    return betterEvaluationFunction(successorGameState)
 
 
 #     ********* Evaluation functions *********
@@ -67,12 +67,99 @@ def betterEvaluationFunction(gameState):
   gameState.getScore():
   The GameState class is defined in pacman.py and you might want to look into that for other helper methods.
   """
+  if gameState.isWin() or gameState.isLose():
+    return gameState.getScore()
+  PacmanLocation = gameState.getPacmanState().configuration.pos
+  GhostStatesArr =  gameState.getGhostStates()
+  GhostsDistances = [util.manhattanDistance(PacmanLocation, Ghost.configuration.pos) for Ghost in GhostStatesArr]
+  risk = 1/(min(GhostsDistances)+1)
+  food_items = 0
+  CurrentFood =gameState.getFood()
+  x,y = util.nearestPoint(PacmanLocation)
+  FoodSquares =0
+  for i in list(range(-3,3)):
+    for j in list(range(-3, 3)):
+      if  isLeagalPos(gameState,x+i,y+j):
+        FoodSquares += 1
+        if CurrentFood[x+i][y+j]:
+          food_items += 1
+  food_density = 0
+    # food_items/FoodSquares
+  CapsuleActive = 1 if gameState.getGhostState(GhostsDistances.index(min(GhostsDistances))+1).scaredTimer >= risk else -1
+
+  minFoodDist= findMinFoodDistance(gameState)
+  print ("pacman pos:", (x,y) ,"min found", minFoodDist)
+  #return 1/(minFoodDist[0])
+
+  return gameState.getScore()+abs(gameState.getScore())*(risk*CapsuleActive+food_density+0.5*(1/(minFoodDist[0])))
+
+
+def findMinFoodDistance(gameState):
+  CurrentFood =gameState.getFood()
+  PacmanLocation =  util.nearestPoint(gameState.getPacmanState().configuration.pos)
+  if gameState.data._foodEaten == (PacmanLocation[0],PacmanLocation[1]):
+    return (1,(PacmanLocation[0],PacmanLocation[1]))
+  for i in list(range(1, max(gameState.data.layout.width, gameState.data.layout.height))):
+    topBaseRow = PacmanLocation[1] + i
+    leftBaseCol = PacmanLocation[0] - i
+    bottomBaseRow = PacmanLocation[1] - i
+    rightBaseCol = PacmanLocation[0] + i
+    for j in list(range(0, i+1)):
+      # Sacnning in squares arount pacman
+      # top row
+      if isLeagalPos(gameState, PacmanLocation[0] + j, topBaseRow) and (CurrentFood[PacmanLocation[0] + j][topBaseRow] or (PacmanLocation[0] + j, topBaseRow) in gameState.getCapsules()):
+        print ('found at top row jcol:', j)
+        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] + j, topBaseRow))+1,(PacmanLocation[0] + j, topBaseRow))
+
+      if isLeagalPos(gameState, PacmanLocation[0] - j, topBaseRow) and (CurrentFood[PacmanLocation[0] - j][topBaseRow] or (PacmanLocation[0] - j, topBaseRow) in gameState.getCapsules()):
+        print ('found at top row jcol: ', -j)
+        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] - j, topBaseRow))+1,(PacmanLocation[0] - j, topBaseRow))
+
+      # bottomRow
+      if isLeagalPos(gameState, PacmanLocation[0] + j, bottomBaseRow) and (CurrentFood[PacmanLocation[0] + j][
+        bottomBaseRow] or (PacmanLocation[0] + j, bottomBaseRow) in gameState.getCapsules()):
+        print ('found at btm row jcol: ', j)
+
+        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] + j, bottomBaseRow))+1,(PacmanLocation[0] + j, bottomBaseRow))
+
+      if isLeagalPos(gameState, PacmanLocation[0] - j, bottomBaseRow) and (CurrentFood[PacmanLocation[0] - j][
+        bottomBaseRow] or (PacmanLocation[0] - j, bottomBaseRow) in gameState.getCapsules()):
+        print ('found at btm row jcol: ' ,-j)
+        return (util.manhattanDistance(PacmanLocation, (PacmanLocation[0] - j, bottomBaseRow))+1,(PacmanLocation[0] - j, bottomBaseRow))
+
+      # left col
+      if isLeagalPos(gameState, leftBaseCol, PacmanLocation[1] + j) and (CurrentFood[leftBaseCol][PacmanLocation[1] + j]
+        or (leftBaseCol, PacmanLocation[1] + j) in gameState.getCapsules()):
+        print ('found at left col jrow: ', j)
+        return (util.manhattanDistance(PacmanLocation, (leftBaseCol, PacmanLocation[1] + j))+1,(leftBaseCol, PacmanLocation[1] + j))
+
+      if isLeagalPos(gameState, leftBaseCol, PacmanLocation[1] - j) and (CurrentFood[leftBaseCol][PacmanLocation[1] - j]
+        or (leftBaseCol, PacmanLocation[1] - j) in gameState.getCapsules()):
+        print ('found at left col jrow: ', -j)
+        return (util.manhattanDistance(PacmanLocation, (leftBaseCol, PacmanLocation[1] - j))+1,(leftBaseCol, PacmanLocation[1] - j))
+
+      # right col
+      if isLeagalPos(gameState, rightBaseCol, PacmanLocation[1] + j) and (CurrentFood[rightBaseCol][
+        PacmanLocation[1] + j] or (rightBaseCol, PacmanLocation[1] + j) in gameState.getCapsules()):
+        print ('found at right col jrow: ', j)
+        return (util.manhattanDistance(PacmanLocation, (rightBaseCol, PacmanLocation[1] + j))+1,(rightBaseCol, PacmanLocation[1] + j))
+
+      if isLeagalPos(gameState, rightBaseCol, PacmanLocation[1] - j) and (CurrentFood[rightBaseCol][PacmanLocation[1] - j] or (rightBaseCol, PacmanLocation[1] - j) in gameState.getCapsules()):
+        print ('found at right col jrow: ', -j)
+        return (util.manhattanDistance(PacmanLocation, (rightBaseCol, PacmanLocation[1] - j))+1,(rightBaseCol, PacmanLocation[1] - j))
+
 
 #     ********* MultiAgent Search Agents- sections c,d,e,f*********
 
+def isLeagalPos(gameState,x,y):
+  if x >= 0 and x < gameState.data.layout.width and y >= 0 and y < gameState.data.layout.height:
+    return True
+  return False
+
+
 class MultiAgentSearchAgent(Agent):
   """
-    This class provides some common elements to all of your
+    This class provides some common elements to all of you
     multi-agent searchers.  Any methods defined here will be available
     to the MinimaxAgent, AlphaBetaAgent & both ExpectimaxAgents.
 
