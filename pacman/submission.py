@@ -1,5 +1,5 @@
-import random, util
-from game import Agent
+import random, util, numpy
+from game import Agent,Actions
 
 #     ********* Reflex agent- sections a and b *********
 class ReflexAgent(Agent):
@@ -67,10 +67,11 @@ def betterEvaluationFunction(gameState):
   gameState.getScore():
   The GameState class is defined in pacman.py and you might want to look into that for other helper methods.
   """
+  print ("Dfds")
   if gameState.isWin() or gameState.isLose():
     return gameState.getScore()
   PacmanLocation = gameState.getPacmanState().configuration.pos
-  GhostStatesArr =  gameState.getGhostStates()
+  GhostStatesArr = gameState.getGhostStates()
   GhostsDistances = [util.manhattanDistance(PacmanLocation, Ghost.configuration.pos) for Ghost in GhostStatesArr]
   risk = 1/(min(GhostsDistances)) if min(GhostsDistances) != 0 else 1
   food_items = 0
@@ -88,8 +89,47 @@ def betterEvaluationFunction(gameState):
 
   minFoodDist= findMinFoodDistance(gameState)
   punishWalls = punishNearWalls(gameState)
-  return 0.5*gameState.getScore()+0.5*abs(gameState.getScore())*(0.6*risk*CapsuleActive+0.05*food_density+0.3*(1/(minFoodDist[0]))-0.05*punishWalls)
 
+  # (inhartionx,inhartiony) = util.nearestPoint((PacmanLocation[0]+Pacdx, PacmanLocation[1]+Pacdy))
+  WalkToWallPunish = PunishWallRewardFood(gameState)
+  print(PacmanLocation," Walk to wall Punish: ", WalkToWallPunish)
+  return 0.6*gameState.getScore()+0.4*abs(gameState.getScore())*(0.7*risk*CapsuleActive+0.3*food_density+(1/(minFoodDist[0]))+0.1*WalkToWallPunish - 0.2*punishWalls)
+
+def PunishWallRewardFood(gameState):
+  RawData = CloestFoodOrWallInDir(gameState)
+  if RawData ==0 : return 1
+  return 1/RawData
+
+
+#0 for food in palce negative value if sees wall in front before food,  positive if sees food
+def CloestFoodOrWallInDir(gameState):
+  i=0
+  PacmanLocation= gameState.getPacmanState().configuration.pos
+  if PacmanLocation == gameState.data._foodEaten:
+    return 0
+  (Pacdx, Pacdy)= Actions.directionToVector(gameState.getPacmanState().getDirection())
+  (initx, inity)= gameState.getPacmanPosition()
+  (initx, inity) = util.nearestPoint((PacmanLocation[0] + Pacdx, PacmanLocation[1] + Pacdy))
+  while isLeagalPos(gameState,initx,inity):
+    i+=1
+    if gameState.getFood()[initx][inity]:
+      return i
+    if gameState.hasWall(initx,inity):
+      return -i
+    (initx, inity) = util.nearestPoint((initx + Pacdx, inity + Pacdy))
+  return i
+
+# def ClosestWallInDirestion(gameState):
+#   i=0
+#   #irelevant factor when there is food in the state
+#   (initx, inity)= gameState.getPacmanPosition()
+#   (inhartionx,inhartiony) = util.nearestPoint((PacmanLocation[0]+Pacdx, PacmanLocation[1]+Pacdy))
+#   while isLeagalPos(gameState,initx,inity)
+#     i+=1;
+#     #there is food on the way
+#     if gameState.getFood()[initx][inity]:
+#       return 0
+#   return i;
 
 def findMinFoodDistance(gameState):
   CurrentFood =gameState.getFood()
@@ -145,22 +185,22 @@ def punishNearWalls(gameState):
     return punish
   punish+=1  #punish for no food at point
   (right,left,top,bottom) = (0,0,0,0)
-  if isLeagalPos(gameState,PacmanLocation[0]+1 ,PacmanLocation[1]) and CurrentWalls[PacmanLocation[0]+1][PacmanLocation[1]]:
+  if not isLeagalPos(gameState,PacmanLocation[0]+1 ,PacmanLocation[1]) or CurrentWalls[PacmanLocation[0]+1][PacmanLocation[1]]:
     punish+=1 #punish for each wall in current location
     right = 1
-  if isLeagalPos(gameState,PacmanLocation[0]-1 ,PacmanLocation[1]) and CurrentWalls[PacmanLocation[0]-1][PacmanLocation[1]]:
+  if not isLeagalPos(gameState,PacmanLocation[0]-1 ,PacmanLocation[1]) and CurrentWalls[PacmanLocation[0]-1][PacmanLocation[1]]:
     punish+=1 #punish for each wall in current location
     left=1
-  if isLeagalPos(gameState,PacmanLocation[0] ,PacmanLocation[1]+1) and CurrentWalls[PacmanLocation[0]][PacmanLocation[1]+1]:
+  if not isLeagalPos(gameState,PacmanLocation[0] ,PacmanLocation[1]+1) and CurrentWalls[PacmanLocation[0]][PacmanLocation[1]+1]:
     punish+=1 #punish for each wall in current location
     top=1
-  if isLeagalPos(gameState,PacmanLocation[0] ,PacmanLocation[1]-1) and CurrentWalls[PacmanLocation[0]][PacmanLocation[1]-1]:
+  if not isLeagalPos(gameState,PacmanLocation[0] ,PacmanLocation[1]-1) and CurrentWalls[PacmanLocation[0]][PacmanLocation[1]-1]:
     punish+=1 #punish for each wall in current location
     bottom=1
 
   punish = ((top and left) + (top and right) +  (bottom and left) + (bottom and right))
 
-  return punish/8;  #maximom is 1
+  return punish/4  #maximom is 1
 
 def isLeagalPos(gameState,x,y):
   if x >= 0 and x < gameState.data.layout.width and y >= 0 and y < gameState.data.layout.height:
@@ -199,8 +239,6 @@ class MinimaxAgent(MultiAgentSearchAgent):
     Your minimax agent
   """
 
-
-
   def getAction(self, gameState):
     """
       Returns the minimax action from the current gameState using self.depth
@@ -237,47 +275,48 @@ class MinimaxAgent(MultiAgentSearchAgent):
     """
 
 
-
-    return self.Minimax(gameState,self.depth)[0]
+    bestMove= None
+    MaxSuccValue = - numpy.inf
+    for action in gameState.getLegalActions(0):
+      NewSucc = gameState.generateSuccessor(0, action)
+      NewSuccVal = self.Minimax(NewSucc, self.depth- 1)
+      if NewSuccVal > MaxSuccValue:
+        MaxSuccValue = NewSuccVal
+        bestMove = action
+    return bestMove
 
     # END_YOUR_CODE
 
   def Minimax(self,gameState, Depth):
-    if gameState.isLose() or gameState.isWin() or Depth ==0: return (None,self.evaluationFunction(gameState))
+    if gameState.isLose() or gameState.isWin() or Depth ==0: return (self.evaluationFunction(gameState))
     currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
-    print(currentAgentIndex )
     if currentAgentIndex == 0:
     # now its pacman turn
       MaxCandidateflag = 1
       MaxSuccessorValue=0
-      BestMove = None
       for action in gameState.getLegalActions(currentAgentIndex):
-        NewSucc=gameState.generateSuccessor(currentAgentIndex, action)
-        (NewBestMove, NewSuccVal)= self.Minimax(NewSucc, Depth - 1)
+        NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+        NewSuccVal = self.Minimax(NewSucc, Depth - 1)
         if MaxCandidateflag == 1:
           MaxCandidateflag = 0
           MaxSuccessorValue = NewSuccVal
-          BestMove = action
+          # BestMove = action
         elif MaxSuccessorValue < NewSuccVal:
           MaxSuccessorValue = NewSuccVal
-          BestMove = action
-      return (BestMove,MaxSuccessorValue)
+          # BestMove = action
+      return MaxSuccessorValue
 
     MinCandidateflag = 1
-
     MinSuccesorValue =0
-    worstMove = None
     for action in gameState.getLegalActions(currentAgentIndex):
       NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
-      (NewWorstMove, NewSuccVal) = self.Minimax(NewSucc, Depth)
+      NewSuccVal = self.Minimax(NewSucc, Depth)
       if MinCandidateflag == 1:
         MinCandidateflag = 0
         MinSuccesorValue = NewSuccVal
-        WoMove = action
       elif MinSuccesorValue > NewSuccVal:
         MinSuccesorValue = NewSuccVal
-        worstMove = action
-    return (worstMove,MinSuccesorValue)
+    return MinSuccesorValue
 
 
           ######################################################################################
@@ -294,8 +333,55 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
     """
 
     # BEGIN_YOUR_CODE
-    raise Exception("Not implemented yet")
+    (bestMove,BestScore) = (None, 0)
+    alpha = -numpy.inf
+    MaxSuccValue = - numpy.inf
+    for action in gameState.getLegalActions(0):
+      NewSucc = gameState.generateSuccessor(0, action)
+      NewSuccVal = self.AlphaBeta(NewSucc, alpha ,numpy.inf , self.depth- 1)
+      if NewSuccVal > MaxSuccValue:
+        MaxSuccValue = NewSuccVal
+        alpha = MaxSuccValue
+        bestMove = action
+    return bestMove
     # END_YOUR_CODE
+
+  def AlphaBeta(self, gameState,alpha,beta,Depth):
+    if gameState.isLose() or gameState.isWin() or Depth ==0: return (self.evaluationFunction(gameState))
+    currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
+    if currentAgentIndex == 0:
+    # now its pacman turn - Max vertex
+      MaxCandidateflag = 1
+      MaxSuccessorValue=0
+      for action in gameState.getLegalActions(currentAgentIndex):
+        NewSucc=gameState.generateSuccessor(currentAgentIndex, action)
+        NewSuccVal = self.AlphaBeta(NewSucc, alpha,beta,Depth - 1)
+        alpha = max(alpha, NewSuccVal)
+        if MaxCandidateflag == 1:
+          MaxCandidateflag = 0
+          MaxSuccessorValue = NewSuccVal
+        elif MaxSuccessorValue < NewSuccVal:
+          MaxSuccessorValue = NewSuccVal
+        if MaxSuccessorValue >= beta:
+            return numpy.inf
+      return MaxSuccessorValue
+
+    MinCandidateflag = 1
+    MinSuccesorValue =0
+    for action in gameState.getLegalActions(currentAgentIndex):
+      NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+      NewSuccVal = self.AlphaBeta(NewSucc, alpha, beta, Depth)
+      beta = min(beta, NewSuccVal)
+      if MinCandidateflag == 1:
+        MinCandidateflag = 0
+        MinSuccesorValue = NewSuccVal
+      elif MinSuccesorValue > NewSuccVal:
+        MinSuccesorValue = NewSuccVal
+      if MinCandidateflag <= alpha:
+        return - numpy.inf
+    return MinSuccesorValue
+
+
 
 ######################################################################################
 # e: implementing random expectimax
