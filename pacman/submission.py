@@ -441,30 +441,6 @@ class RandomExpectimaxAgent(MultiAgentSearchAgent):
       return EStatVal
 
 
-
-
-    # if Depth == 0: return self.evaluationFunction(gameState)
-    # assert ((not gameState.isWin()) or not gameState.isLose()), "evaluation function return state win/lose"
-    # currentAgentIndex = (gameState.data._agentMoved + 1) % gameState.getNumAgents()
-    # if currentAgentIndex == 0:
-    #   maxStatVal = - numpy.inf
-    #   for action in gameState.getLegalActions(currentAgentIndex):
-    #     nextPacManState = gameState.generateSuccessor(currentAgentIndex, action)
-    #     maxStatVal = max(self.Expectimax(nextPacManState, Depth-1), maxStatVal)
-    #   return maxStatVal
-    # else:
-    #   LegalActions = gameState.getLegalActions(currentAgentIndex)
-    #   dist = util.Counter()
-    #   for a in LegalActions: dist[a] = 1.0
-    #   dist.normalize()
-    #   sum = 0
-    #   for action in LegalActions:
-    #     nextGhostState = gameState.generateSuccessor(currentAgentIndex, action)
-    #     sum += dist[action] * self.Expectimax(nextGhostState, Depth)
-    #   return sum
-
-
-
   # END_YOUR_CODE
 
 ######################################################################################
