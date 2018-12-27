@@ -67,7 +67,7 @@ def betterEvaluationFunction(gameState):
   gameState.getScore():
   The GameState class is defined in pacman.py and you might want to look into that for other helper methods.
   """
-  print ("Dfds")
+  # print ("Dfds")
   if gameState.isWin() or gameState.isLose():
     return gameState.getScore()
   PacmanLocation = gameState.getPacmanState().configuration.pos
@@ -92,8 +92,8 @@ def betterEvaluationFunction(gameState):
 
   # (inhartionx,inhartiony) = util.nearestPoint((PacmanLocation[0]+Pacdx, PacmanLocation[1]+Pacdy))
   WalkToWallPunish = PunishWallRewardFood(gameState)
-  print(PacmanLocation," Walk to wall Punish: ", WalkToWallPunish)
-  return 0.6*gameState.getScore()+0.4*abs(gameState.getScore())*(0.7*risk*CapsuleActive+0.3*food_density+(1/(minFoodDist[0]))+0.1*WalkToWallPunish - 0.2*punishWalls)
+  # print(PacmanLocation," Walk to wall Punish: ", WalkToWallPunish)
+  return 0.5*gameState.getScore()+0.5*abs(gameState.getScore())*(0.7*risk*CapsuleActive+0.*food_density+(1/(minFoodDist[0]))+0.1*WalkToWallPunish - 0.2*punishWalls)
 
 def PunishWallRewardFood(gameState):
   RawData = CloestFoodOrWallInDir(gameState)
@@ -101,7 +101,7 @@ def PunishWallRewardFood(gameState):
   return 1/RawData
 
 
-#0 for food in palce negative value if sees wall in front before food,  positive if sees food
+# 0 for food in palce negative value if sees wall in front before food,  positive if sees food
 def CloestFoodOrWallInDir(gameState):
   i=0
   PacmanLocation= gameState.getPacmanState().configuration.pos
@@ -226,7 +226,7 @@ class MultiAgentSearchAgent(Agent):
     is another abstract class.
   """
 
-  def __init__(self, evalFn = 'scoreEvaluationFunction', depth = '2'):
+  def __init__(self, evalFn = 'betterEvaluationFunction', depth = '2'):
     self.index = 0 # Pacman is always agent index 0
     self.evaluationFunction = util.lookup(evalFn, globals())
     self.depth = int(depth)
@@ -273,7 +273,6 @@ class MinimaxAgent(MultiAgentSearchAgent):
         The depth to which search should continue
 
     """
-
 
     bestMove= None
     MaxSuccValue = - numpy.inf
@@ -397,9 +396,76 @@ class RandomExpectimaxAgent(MultiAgentSearchAgent):
       All ghosts should be modeled as choosing uniformly at random from their legal moves.
     """
 
+
     # BEGIN_YOUR_CODE
-    raise Exception("Not implemented yet")
-    # END_YOUR_CODE
+
+    bestAction = None
+    maxStatVal = - numpy.inf
+    print("~~~~~~START~~~~~~")
+    for action in gameState.getLegalActions():
+        print(action)
+        nextPacManState = gameState.generateSuccessor(0, action)
+        stateVal = self.Expectimax(nextPacManState, self.depth-1)
+        if max(stateVal, maxStatVal) == stateVal:
+            maxStatVal = stateVal
+            bestAction = action
+    print(bestAction)
+    return bestAction
+
+  def Expectimax(self,gameState,Depth):
+
+
+    if gameState.isLose() or gameState.isWin() or Depth ==0: return (self.evaluationFunction(gameState))
+    currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
+    if currentAgentIndex == 0:
+    # now its pacman turn
+      print("PACMAN TURN")
+      maxStatVal = - numpy.inf
+      for action in gameState.getLegalActions(currentAgentIndex):
+        NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+        maxStatVal = max(maxStatVal, self.Expectimax(NewSucc, Depth - 1))
+      print ("pacmac max chosen: ",maxStatVal )
+      return maxStatVal
+
+    else:
+      dist = util.Counter()
+      for a in gameState.getLegalActions(currentAgentIndex): dist[a] = 1.0
+      dist.normalize()
+      print("ghost:", currentAgentIndex, "| have:", len(dist)," moves")
+      EStatVal = 0
+      for action in gameState.getLegalActions(currentAgentIndex):
+        print("ghost:", currentAgentIndex, "act:", action)
+        NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+        EStatVal += dist[action]* self.Expectimax(NewSucc, Depth)
+      print("ghost:", currentAgentIndex, "| retrun:", EStatVal)
+      return EStatVal
+
+
+
+
+    # if Depth == 0: return self.evaluationFunction(gameState)
+    # assert ((not gameState.isWin()) or not gameState.isLose()), "evaluation function return state win/lose"
+    # currentAgentIndex = (gameState.data._agentMoved + 1) % gameState.getNumAgents()
+    # if currentAgentIndex == 0:
+    #   maxStatVal = - numpy.inf
+    #   for action in gameState.getLegalActions(currentAgentIndex):
+    #     nextPacManState = gameState.generateSuccessor(currentAgentIndex, action)
+    #     maxStatVal = max(self.Expectimax(nextPacManState, Depth-1), maxStatVal)
+    #   return maxStatVal
+    # else:
+    #   LegalActions = gameState.getLegalActions(currentAgentIndex)
+    #   dist = util.Counter()
+    #   for a in LegalActions: dist[a] = 1.0
+    #   dist.normalize()
+    #   sum = 0
+    #   for action in LegalActions:
+    #     nextGhostState = gameState.generateSuccessor(currentAgentIndex, action)
+    #     sum += dist[action] * self.Expectimax(nextGhostState, Depth)
+    #   return sum
+
+
+
+  # END_YOUR_CODE
 
 ######################################################################################
 # f: implementing directional expectimax
