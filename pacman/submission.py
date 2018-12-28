@@ -1,5 +1,11 @@
-import random, util, numpy
+import random, util, numpy, pacman
 from game import Agent,Actions
+
+
+PacmanLastPositions = []
+PacmanLastPositionsCounter = util.Counter()
+FoodCollectedCounter=0
+#GhostEaten = 0
 
 #     ********* Reflex agent- sections a and b *********
 class ReflexAgent(Agent):
@@ -19,6 +25,9 @@ class ReflexAgent(Agent):
     getAction takes a GameState and returns some Directions.X for some X in the set {North, South, West, East, Stop}
     ------------------------------------------------------------------------------
     """
+
+    if len(PacmanLastPositions) > max(gameState.data.layout.width, gameState.data.layout.height)*2:
+      PacmanLastPositions.pop()
     # Collect legal moves and successor states
     legalMoves = gameState.getLegalActions()
 
@@ -27,8 +36,6 @@ class ReflexAgent(Agent):
     bestScore = max(scores)
     bestIndices = [index for index in range(len(scores)) if scores[index] == bestScore]
     chosenIndex = random.choice(bestIndices) # Pick randomly among the best
-
-
     return legalMoves[chosenIndex]
 
   def evaluationFunction(self, currentGameState, action):
@@ -67,35 +74,33 @@ def betterEvaluationFunction(gameState):
   gameState.getScore():
   The GameState class is defined in pacman.py and you might want to look into that for other helper methods.
   """
-  # print ("Dfds")
+  global PacmanLastPositions
+  global PacmanLastPositionsCounter
   if gameState.isWin() or gameState.isLose():
     return gameState.getScore()
   PacmanLocation = gameState.getPacmanState().configuration.pos
   GhostStatesArr = gameState.getGhostStates()
   GhostsDistances = [util.manhattanDistance(PacmanLocation, Ghost.configuration.pos) for Ghost in GhostStatesArr]
-  risk = 1/(min(GhostsDistances)) if min(GhostsDistances) != 0 else 1
-  CapsuleActive = 4 if gameState.getGhostState(GhostsDistances.index(min(GhostsDistances)) + 1).scaredTimer >= 0.5 * min(GhostsDistances) else -1
-  # do we need to use -eaten above, for states which show the ghost was eaten
-
-  food_items = 0
-  CurrentFood =gameState.getFood()
-  x,y = util.nearestPoint(PacmanLocation)
-  FoodSquares =0
-  for i in list(range(-3,3)):
-    for j in list(range(-3, 3)):
-      if  isLeagalPos(gameState,x+i,y+j):
-        FoodSquares += 1
-        if CurrentFood[x+i][y+j]:
-          food_items += 1
-  food_density = 0
-
-  minFoodDist= findMinFoodDistance(gameState)
-  punishWalls = punishNearWalls(gameState)
-
-  # (inhartionx,inhartiony) = util.nearestPoint((PacmanLocation[0]+Pacdx, PacmanLocation[1]+Pacdy))
-  WalkToWallPunish = PunishWallRewardFood(gameState)
-  # print(PacmanLocation," Walk to wall Punish: ", WalkToWallPunish)
-  return 0.5*gameState.getScore()+0.5*abs(gameState.getScore())*(0.7*risk*CapsuleActive+0.*food_density+(1/(minFoodDist[0]))+0.1*WalkToWallPunish - 0.2*punishWalls)
+  risk = 1/(min(GhostsDistances)) if min(GhostsDistances) != 0 else 5
+  #print ("risk: ", risk)
+  CapsuleActive = 2 if gameState.getGhostState(GhostsDistances.index(min(GhostsDistances))+1).scaredTimer >= 0.5*min(GhostsDistances) else -2
+  #print ("Capsole considered:",risk*CapsuleActive)
+  ImprovedPunish=1
+  #print ("eaten gohst: ", GhostEaten)
+  for key in list(PacmanLastPositionsCounter.keys()):
+    if PacmanLastPositionsCounter[key] > 1:
+      ImprovedPunish*=(PacmanLastPositionsCounter[key])
+  #WalkToWallPunish = PunishWallRewardFood(gameState)
+  #(Pacdx, Pacdy)= Actions.directionToVector(gameState.getPacmanState().getDirection())
+  # if len(PacmanLastPositions) > 2 and PacmanLastPositions[len(PacmanLocation) - 1] != "" and PacmanLastPositions[len(PacmanLocation) - 2] != ""\
+  #   and util.nearestPoint((PacmanLastPositions[len(PacmanLocation) - 2][0] + Pacdx, PacmanLastPositions[len(PacmanLocation) - 2][1] + Pacdy)) == util.nearestPoint(PacmanLastPositions[len(PacmanLocation) - 1]):
+  #   persistanceReward=1;
+  # else:
+  #   persistanceReward= 0
+  #print (persistanceReward)
+  #ClosestFood=1/findMinFoodDistance(gameState)[0]
+  #return  2*risk*CapsuleActive
+  return 0.7*gameState.getScore()+0.3*abs(gameState.getScore())*(2*risk*CapsuleActive-0.1*ImprovedPunish+ 0.5*FoodCollectedCounter)
 
 def PunishWallRewardFood(gameState):
   RawData = CloestFoodOrWallInDir(gameState)
@@ -104,13 +109,12 @@ def PunishWallRewardFood(gameState):
 
 
 # 0 for food in palce negative value if sees wall in front before food,  positive if sees food
-def CloestFoodOrWallInDir(gameState):
+def CloestoodOrWallInDir(gameState):
   i=0
   PacmanLocation= gameState.getPacmanState().configuration.pos
   if PacmanLocation == gameState.data._foodEaten:
     return 0
   (Pacdx, Pacdy)= Actions.directionToVector(gameState.getPacmanState().getDirection())
-  (initx, inity)= gameState.getPacmanPosition()
   (initx, inity) = util.nearestPoint((PacmanLocation[0] + Pacdx, PacmanLocation[1] + Pacdy))
   while isLeagalPos(gameState,initx,inity):
     i+=1
@@ -275,12 +279,32 @@ class MinimaxAgent(MultiAgentSearchAgent):
         The depth to which search should continue
 
     """
+    global PacmanLastPositions
+    global PacmanLastPositionsCounter
+    global FoodCollectedCounter
+    PacmanLastPositions.insert(0, gameState.getPacmanPosition())
+    PacmanLastPositionsCounter[gameState.getPacmanPosition()]+=1
+    #print ("Adding pacman rael location: ", gameState.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[gameState.getPacmanPosition()])
+    if len(PacmanLastPositions) > 3:
+      PacmanLastPositionsCounter[PacmanLastPositions.pop()]-=1
+
+
 
     bestMove= None
     MaxSuccValue = - numpy.inf
-    for action in gameState.getLegalActions(0):
+    for action in gameState.getLegalPacmanActions():
       NewSucc = gameState.generateSuccessor(0, action)
+      PacmanLastPositions.insert(0, NewSucc.getPacmanPosition())
+      PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] += 1
+      # print ("Adding To pac list: ", NewSucc.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[NewSucc.getPacmanPosition()])
+      if gameState.hasFood(NewSucc.getPacmanPosition()[0], NewSucc.getPacmanPosition()[1]):
+        FoodCollectedCounter += 1;
       NewSuccVal = self.Minimax(NewSucc, self.depth- 1)
+      PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] -= 1
+      # print ("Removing from pac list: ", NewSucc.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[NewSucc.getPacmanPosition()])
+      PacmanLastPositions.pop(0)
+      if gameState.hasFood(NewSucc.getPacmanPosition()[0], NewSucc.getPacmanPosition()[1]):
+        FoodCollectedCounter -= 1;
       if NewSuccVal > MaxSuccValue:
         MaxSuccValue = NewSuccVal
         bestMove = action
@@ -289,34 +313,35 @@ class MinimaxAgent(MultiAgentSearchAgent):
     # END_YOUR_CODE
 
   def Minimax(self,gameState, Depth):
+    global PacmanLastPositions
+    global FoodCollectedCounter
+    global PacmanLastPositionsCounter
     if gameState.isLose() or gameState.isWin() or Depth ==0: return (self.evaluationFunction(gameState))
     currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
     if currentAgentIndex == 0:
     # now its pacman turn
-      MaxCandidateflag = 1
-      MaxSuccessorValue=0
+      MaxSuccessorValue= -numpy.inf
       for action in gameState.getLegalActions(currentAgentIndex):
         NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+        PacmanLastPositions.insert(0, NewSucc.getPacmanPosition())
+        PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] += 1
+        # print ("Adding To pac list: ", NewSucc.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[NewSucc.getPacmanPosition()])
+        if gameState.hasFood(NewSucc.getPacmanPosition()[0], NewSucc.getPacmanPosition()[1]):
+          FoodCollectedCounter += 1
         NewSuccVal = self.Minimax(NewSucc, Depth - 1)
-        if MaxCandidateflag == 1:
-          MaxCandidateflag = 0
-          MaxSuccessorValue = NewSuccVal
-          # BestMove = action
-        elif MaxSuccessorValue < NewSuccVal:
-          MaxSuccessorValue = NewSuccVal
-          # BestMove = action
+        PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] -= 1
+        #print ("Removing from pac list: ", NewSucc.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[NewSucc.getPacmanPosition()])
+        PacmanLastPositions.pop(0)
+        if gameState.hasFood(NewSucc.getPacmanPosition()[0], NewSucc.getPacmanPosition()[1]):
+          FoodCollectedCounter -= 1;
+        MaxSuccessorValue=max(MaxSuccessorValue,NewSuccVal)
       return MaxSuccessorValue
 
-    MinCandidateflag = 1
-    MinSuccesorValue =0
+    MinSuccesorValue = numpy.inf
     for action in gameState.getLegalActions(currentAgentIndex):
       NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
       NewSuccVal = self.Minimax(NewSucc, Depth)
-      if MinCandidateflag == 1:
-        MinCandidateflag = 0
-        MinSuccesorValue = NewSuccVal
-      elif MinSuccesorValue > NewSuccVal:
-        MinSuccesorValue = NewSuccVal
+      MinSuccesorValue=min(MinSuccesorValue,NewSuccVal)
     return MinSuccesorValue
 
 
@@ -332,53 +357,81 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
     """
       Returns the minimax action using self.depth and self.evaluationFunction
     """
-
     # BEGIN_YOUR_CODE
-    (bestMove,BestScore) = (None, 0)
+    global PacmanLastPositions
+    global PacmanLastPositionsCounter
+    global FoodCollectedCounter
+    global GhostEaten
+    PacmanLastPositions.insert(0, gameState.getPacmanPosition())
+    PacmanLastPositionsCounter[gameState.getPacmanPosition()]+=1
+    #print ("Adding pacman rael location: ", gameState.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[gameState.getPacmanPosition()])
+    if len(PacmanLastPositions) > 3:
+      PacmanLastPositionsCounter[PacmanLastPositions.pop()]-=1
+
+
+    bestMove = None
     alpha = -numpy.inf
     MaxSuccValue = - numpy.inf
     for action in gameState.getLegalActions(0):
       NewSucc = gameState.generateSuccessor(0, action)
+      PacmanLastPositions.insert(0,NewSucc.getPacmanPosition())
+      PacmanLastPositionsCounter[NewSucc.getPacmanPosition()]+=1
+      #print ("Adding pacman speculative location: ", NewSucc.getPacmanPosition(), "Counter = ",
+      #      PacmanLastPositionsCounter[NewSucc.getPacmanPosition()])
+      if gameState.hasFood(NewSucc.getPacmanPosition()[0],NewSucc.getPacmanPosition()[1]):
+        FoodCollectedCounter +=1;
       NewSuccVal = self.AlphaBeta(NewSucc, alpha ,numpy.inf , self.depth- 1)
+      PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] -= 1
+      PacmanLastPositions.pop(0)
+      #print ("Removing To pac list: ", NewSucc.getPacmanPosition(), "Counter= ", PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] )
+      if gameState.hasFood(NewSucc.getPacmanPosition()[0],NewSucc.getPacmanPosition()[1]):
+        FoodCollectedCounter -=1
+      assert FoodCollectedCounter == 0
       if NewSuccVal > MaxSuccValue:
         MaxSuccValue = NewSuccVal
         alpha = MaxSuccValue
         bestMove = action
     return bestMove
+
     # END_YOUR_CODE
 
   def AlphaBeta(self, gameState,alpha,beta,Depth):
+    global PacmanLastPositions
+    global PacmanLastPositionsCounter
+    global FoodCollectedCounter
     if gameState.isLose() or gameState.isWin() or Depth ==0: return (self.evaluationFunction(gameState))
     currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
     if currentAgentIndex == 0:
     # now its pacman turn - Max vertex
-      MaxCandidateflag = 1
-      MaxSuccessorValue=0
+
+      MaxSuccessorValue= -numpy.inf
       for action in gameState.getLegalActions(currentAgentIndex):
+        #print ("Pacman Current Location:", PacLoc,  "Appling action: ", action, "Vector:", vector, "newLocation: ", util.nearestPoint(newLocation))
         NewSucc=gameState.generateSuccessor(currentAgentIndex, action)
-        NewSuccVal = self.AlphaBeta(NewSucc, alpha,beta,Depth - 1)
+        PacmanLastPositions.insert(0,NewSucc.getPacmanPosition())
+        PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] += 1
+        #print ("Adding To pac list: ", NewSucc.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[NewSucc.getPacmanPosition()])
+        if gameState.hasFood(NewSucc.getPacmanPosition()[0], NewSucc.getPacmanPosition()[1]):
+          FoodCollectedCounter += 1;
+        NewSuccVal = self.AlphaBeta(NewSucc, alpha, beta, Depth - 1)
+        PacmanLastPositionsCounter[NewSucc.getPacmanPosition()] -= 1
+        #print ("Removing from pac list: ", NewSucc.getPacmanPosition(), "Counter = ", PacmanLastPositionsCounter[NewSucc.getPacmanPosition()])
+        PacmanLastPositions.pop(0)
+        if gameState.hasFood(NewSucc.getPacmanPosition()[0], NewSucc.getPacmanPosition()[1]):
+          FoodCollectedCounter -= 1;
         alpha = max(alpha, NewSuccVal)
-        if MaxCandidateflag == 1:
-          MaxCandidateflag = 0
-          MaxSuccessorValue = NewSuccVal
-        elif MaxSuccessorValue < NewSuccVal:
-          MaxSuccessorValue = NewSuccVal
+        MaxSuccessorValue=max(MaxSuccessorValue, NewSuccVal)
         if MaxSuccessorValue >= beta:
-            return numpy.inf
+          return numpy.inf
       return MaxSuccessorValue
 
-    MinCandidateflag = 1
-    MinSuccesorValue =0
+    MinSuccesorValue= numpy.inf
     for action in gameState.getLegalActions(currentAgentIndex):
       NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
       NewSuccVal = self.AlphaBeta(NewSucc, alpha, beta, Depth)
       beta = min(beta, NewSuccVal)
-      if MinCandidateflag == 1:
-        MinCandidateflag = 0
-        MinSuccesorValue = NewSuccVal
-      elif MinSuccesorValue > NewSuccVal:
-        MinSuccesorValue = NewSuccVal
-      if MinCandidateflag <= alpha:
+      MinSuccesorValue= min(MinSuccesorValue, NewSuccVal)
+      if MinSuccesorValue <= alpha:
         return - numpy.inf
     return MinSuccesorValue
 
@@ -398,47 +451,72 @@ class RandomExpectimaxAgent(MultiAgentSearchAgent):
       All ghosts should be modeled as choosing uniformly at random from their legal moves.
     """
 
-
     # BEGIN_YOUR_CODE
 
     bestAction = None
     maxStatVal = - numpy.inf
-    # print("~~~~~~START~~~~~~")
+    print("~~~~~~START~~~~~~")
     for action in gameState.getLegalActions():
-        # print(action)
+        print(action)
         nextPacManState = gameState.generateSuccessor(0, action)
         stateVal = self.Expectimax(nextPacManState, self.depth-1)
         if max(stateVal, maxStatVal) == stateVal:
             maxStatVal = stateVal
             bestAction = action
-    # print(bestAction)
+    print(bestAction)
     return bestAction
 
-  def Expectimax(self, gameState, Depth):
+  def Expectimax(self,gameState,Depth):
+
+
     if gameState.isLose() or gameState.isWin() or Depth ==0: return (self.evaluationFunction(gameState))
     currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
     if currentAgentIndex == 0:
     # now its pacman turn
-    #   print("PACMAN TURN")
+      print("PACMAN TURN")
       maxStatVal = - numpy.inf
       for action in gameState.getLegalActions(currentAgentIndex):
         NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
         maxStatVal = max(maxStatVal, self.Expectimax(NewSucc, Depth - 1))
-      # print ("pacmac max chosen: ",maxStatVal )
+      print ("pacmac max chosen: ",maxStatVal )
       return maxStatVal
 
     else:
       dist = util.Counter()
       for a in gameState.getLegalActions(currentAgentIndex): dist[a] = 1.0
       dist.normalize()
-      # print("ghost:", currentAgentIndex, "| have:", len(dist)," moves")
+      print("ghost:", currentAgentIndex, "| have:", len(dist)," moves")
       EStatVal = 0
       for action in gameState.getLegalActions(currentAgentIndex):
-        # print("ghost:", currentAgentIndex, "act:", action)
+        print("ghost:", currentAgentIndex, "act:", action)
         NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
         EStatVal += dist[action]* self.Expectimax(NewSucc, Depth)
-      # print("ghost:", currentAgentIndex, "| retrun:", EStatVal)
+      print("ghost:", currentAgentIndex, "| retrun:", EStatVal)
       return EStatVal
+
+
+
+
+    # if Depth == 0: return self.evaluationFunction(gameState)
+    # assert ((not gameState.isWin()) or not gameState.isLose()), "evaluation function return state win/lose"
+    # currentAgentIndex = (gameState.data._agentMoved + 1) % gameState.getNumAgents()
+    # if currentAgentIndex == 0:
+    #   maxStatVal = - numpy.inf
+    #   for action in gameState.getLegalActions(currentAgentIndex):
+    #     nextPacManState = gameState.generateSuccessor(currentAgentIndex, action)
+    #     maxStatVal = max(self.Expectimax(nextPacManState, Depth-1), maxStatVal)
+    #   return maxStatVal
+    # else:
+    #   LegalActions = gameState.getLegalActions(currentAgentIndex)
+    #   dist = util.Counter()
+    #   for a in LegalActions: dist[a] = 1.0
+    #   dist.normalize()
+    #   sum = 0
+    #   for action in LegalActions:
+    #     nextGhostState = gameState.generateSuccessor(currentAgentIndex, action)
+    #     sum += dist[action] * self.Expectimax(nextGhostState, Depth)
+    #   return sum
+
 
 
   # END_YOUR_CODE
@@ -456,69 +534,10 @@ class DirectionalExpectimaxAgent(MultiAgentSearchAgent):
       Returns the expectimax action using self.depth and self.evaluationFunction
       All ghosts should be modeled as using the DirectionalGhost distribution to choose from their legal moves.
     """
-    bestAction = None
-    maxStatVal = - numpy.inf
-    # print("~~~~~~START~~~~~~")
-    for action in gameState.getLegalActions():
-        # print(action)
-        nextPacManState = gameState.generateSuccessor(0, action)
-        stateVal = self.DirectionalExpectimax(nextPacManState, self.depth-1)
-        if max(stateVal, maxStatVal) == stateVal:
-            maxStatVal = stateVal
-            bestAction = action
-    # print(bestAction)
-    return bestAction
 
-  def DirectionalExpectimax(self, gameState, Depth):
-    if gameState.isLose() or gameState.isWin() or Depth == 0: return (self.evaluationFunction(gameState))
-    currentAgentIndex = 0 if gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
-    if currentAgentIndex == 0:
-      # now its pacman turn
-      # print("PACMAN TURN")
-      maxStatVal = - numpy.inf
-      for action in gameState.getLegalActions(currentAgentIndex):
-        NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
-        maxStatVal = max(maxStatVal, self.DirectionalExpectimax(NewSucc, Depth - 1))
-      # print("pacmac max chosen: ", maxStatVal)
-      return maxStatVal
-
-    else:
-      ghostState = gameState.getGhostState(currentAgentIndex)
-      legalActions = gameState.getLegalActions(currentAgentIndex)
-      pos = gameState.getGhostPosition(currentAgentIndex)
-      isScared = ghostState.scaredTimer > 0
-
-      speed = 1
-      if isScared: speed = 0.5
-
-      actionVectors = [Actions.directionToVector(a, speed) for a in legalActions]
-      newPositions = [(pos[0] + a[0], pos[1] + a[1]) for a in actionVectors]
-      pacmanPosition = gameState.getPacmanPosition()
-
-      # Select best actions given the state
-      distancesToPacman = [util.manhattanDistance(pos, pacmanPosition) for pos in newPositions]
-      if isScared:
-        bestScore = max(distancesToPacman)
-        bestProb = 0.8
-      else:
-        bestScore = min(distancesToPacman)
-        bestProb = 0.8
-      bestActions = [action for action, distance in zip(legalActions, distancesToPacman) if distance == bestScore]
-
-      # Construct distribution
-      dist = util.Counter()
-      for a in bestActions: dist[a] = bestProb / len(bestActions)
-      for a in legalActions: dist[a] += (1 - bestProb) / len(legalActions)
-      dist.normalize()
-
-      # print("ghost:", currentAgentIndex, "| have:", len(dist), " moves")
-      EStatVal = 0
-      for action in gameState.getLegalActions(currentAgentIndex):
-        # print("ghost:", currentAgentIndex, "act:", action)
-        NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
-        EStatVal += dist[action] * self.DirectionalExpectimax(NewSucc, Depth)
-      # print("ghost:", currentAgentIndex, "| retrun:", EStatVal)
-      return EStatVal
+    # BEGIN_YOUR_CODE
+    raise Exception("Not implemented yet")
+    # END_YOUR_CODE
 
 
 ######################################################################################
