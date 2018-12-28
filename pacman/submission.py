@@ -74,6 +74,9 @@ def betterEvaluationFunction(gameState):
   GhostStatesArr = gameState.getGhostStates()
   GhostsDistances = [util.manhattanDistance(PacmanLocation, Ghost.configuration.pos) for Ghost in GhostStatesArr]
   risk = 1/(min(GhostsDistances)) if min(GhostsDistances) != 0 else 1
+  CapsuleActive = 4 if gameState.getGhostState(GhostsDistances.index(min(GhostsDistances)) + 1).scaredTimer >= 0.5 * min(GhostsDistances) else -1
+  # do we need to use -eaten above, for states which show the ghost was eaten
+
   food_items = 0
   CurrentFood =gameState.getFood()
   x,y = util.nearestPoint(PacmanLocation)
@@ -85,7 +88,6 @@ def betterEvaluationFunction(gameState):
         if CurrentFood[x+i][y+j]:
           food_items += 1
   food_density = 0
-  CapsuleActive = 4 if gameState.getGhostState(GhostsDistances.index(min(GhostsDistances))+1).scaredTimer >= 0.5*min(GhostsDistances) else -1
 
   minFoodDist= findMinFoodDistance(gameState)
   punishWalls = punishNearWalls(gameState)
@@ -401,43 +403,41 @@ class RandomExpectimaxAgent(MultiAgentSearchAgent):
 
     bestAction = None
     maxStatVal = - numpy.inf
-    print("~~~~~~START~~~~~~")
+    # print("~~~~~~START~~~~~~")
     for action in gameState.getLegalActions():
-        print(action)
+        # print(action)
         nextPacManState = gameState.generateSuccessor(0, action)
         stateVal = self.Expectimax(nextPacManState, self.depth-1)
         if max(stateVal, maxStatVal) == stateVal:
             maxStatVal = stateVal
             bestAction = action
-    print(bestAction)
+    # print(bestAction)
     return bestAction
 
-  def Expectimax(self,gameState,Depth):
-
-
+  def Expectimax(self, gameState, Depth):
     if gameState.isLose() or gameState.isWin() or Depth ==0: return (self.evaluationFunction(gameState))
     currentAgentIndex = 0 if  gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
     if currentAgentIndex == 0:
     # now its pacman turn
-      print("PACMAN TURN")
+    #   print("PACMAN TURN")
       maxStatVal = - numpy.inf
       for action in gameState.getLegalActions(currentAgentIndex):
         NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
         maxStatVal = max(maxStatVal, self.Expectimax(NewSucc, Depth - 1))
-      print ("pacmac max chosen: ",maxStatVal )
+      # print ("pacmac max chosen: ",maxStatVal )
       return maxStatVal
 
     else:
       dist = util.Counter()
       for a in gameState.getLegalActions(currentAgentIndex): dist[a] = 1.0
       dist.normalize()
-      print("ghost:", currentAgentIndex, "| have:", len(dist)," moves")
+      # print("ghost:", currentAgentIndex, "| have:", len(dist)," moves")
       EStatVal = 0
       for action in gameState.getLegalActions(currentAgentIndex):
-        print("ghost:", currentAgentIndex, "act:", action)
+        # print("ghost:", currentAgentIndex, "act:", action)
         NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
         EStatVal += dist[action]* self.Expectimax(NewSucc, Depth)
-      print("ghost:", currentAgentIndex, "| retrun:", EStatVal)
+      # print("ghost:", currentAgentIndex, "| retrun:", EStatVal)
       return EStatVal
 
 
@@ -456,10 +456,69 @@ class DirectionalExpectimaxAgent(MultiAgentSearchAgent):
       Returns the expectimax action using self.depth and self.evaluationFunction
       All ghosts should be modeled as using the DirectionalGhost distribution to choose from their legal moves.
     """
+    bestAction = None
+    maxStatVal = - numpy.inf
+    # print("~~~~~~START~~~~~~")
+    for action in gameState.getLegalActions():
+        # print(action)
+        nextPacManState = gameState.generateSuccessor(0, action)
+        stateVal = self.DirectionalExpectimax(nextPacManState, self.depth-1)
+        if max(stateVal, maxStatVal) == stateVal:
+            maxStatVal = stateVal
+            bestAction = action
+    # print(bestAction)
+    return bestAction
 
-    # BEGIN_YOUR_CODE
-    raise Exception("Not implemented yet")
-    # END_YOUR_CODE
+  def DirectionalExpectimax(self, gameState, Depth):
+    if gameState.isLose() or gameState.isWin() or Depth == 0: return (self.evaluationFunction(gameState))
+    currentAgentIndex = 0 if gameState.data._agentMoved == None else (gameState.data._agentMoved + 1) % gameState.getNumAgents()
+    if currentAgentIndex == 0:
+      # now its pacman turn
+      # print("PACMAN TURN")
+      maxStatVal = - numpy.inf
+      for action in gameState.getLegalActions(currentAgentIndex):
+        NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+        maxStatVal = max(maxStatVal, self.DirectionalExpectimax(NewSucc, Depth - 1))
+      # print("pacmac max chosen: ", maxStatVal)
+      return maxStatVal
+
+    else:
+      ghostState = gameState.getGhostState(currentAgentIndex)
+      legalActions = gameState.getLegalActions(currentAgentIndex)
+      pos = gameState.getGhostPosition(currentAgentIndex)
+      isScared = ghostState.scaredTimer > 0
+
+      speed = 1
+      if isScared: speed = 0.5
+
+      actionVectors = [Actions.directionToVector(a, speed) for a in legalActions]
+      newPositions = [(pos[0] + a[0], pos[1] + a[1]) for a in actionVectors]
+      pacmanPosition = gameState.getPacmanPosition()
+
+      # Select best actions given the state
+      distancesToPacman = [util.manhattanDistance(pos, pacmanPosition) for pos in newPositions]
+      if isScared:
+        bestScore = max(distancesToPacman)
+        bestProb = 0.8
+      else:
+        bestScore = min(distancesToPacman)
+        bestProb = 0.8
+      bestActions = [action for action, distance in zip(legalActions, distancesToPacman) if distance == bestScore]
+
+      # Construct distribution
+      dist = util.Counter()
+      for a in bestActions: dist[a] = bestProb / len(bestActions)
+      for a in legalActions: dist[a] += (1 - bestProb) / len(legalActions)
+      dist.normalize()
+
+      # print("ghost:", currentAgentIndex, "| have:", len(dist), " moves")
+      EStatVal = 0
+      for action in gameState.getLegalActions(currentAgentIndex):
+        # print("ghost:", currentAgentIndex, "act:", action)
+        NewSucc = gameState.generateSuccessor(currentAgentIndex, action)
+        EStatVal += dist[action] * self.DirectionalExpectimax(NewSucc, Depth)
+      # print("ghost:", currentAgentIndex, "| retrun:", EStatVal)
+      return EStatVal
 
 
 ######################################################################################
